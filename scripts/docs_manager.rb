@@ -59,7 +59,7 @@ class DocsManager
     credentials = authorizer.get_credentials(user_id)
 
     if credentials.nil?
-      url = authorizer.get_authorization_url(base_url: 'urn:ietf:wg:oauth:2.0:oob')
+      url = authorizer.get_authorization_url(base_url: 'http://localhost')
       output_json({
         status: 'error',
         error_code: 'AUTH_REQUIRED',
@@ -95,7 +95,7 @@ class DocsManager
     credentials = authorizer.get_and_store_credentials_from_code(
       user_id: user_id,
       code: code,
-      base_url: 'urn:ietf:wg:oauth:2.0:oob'
+      base_url: 'http://localhost'
     )
 
     output_json({
