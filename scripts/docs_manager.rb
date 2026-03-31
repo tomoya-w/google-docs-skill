@@ -866,13 +866,27 @@ class DocsManager
       )
     end
 
+    # Insert tables (in reverse order to preserve indices)
+    tables = parsed[:tables] || []
+    tables.reverse.each do |table_info|
+      adjusted_index = table_info[:insert_index] + offset
+      insert_table_internal(
+        document_id: document_id,
+        rows: table_info[:num_rows],
+        cols: table_info[:num_cols],
+        index: adjusted_index,
+        data: table_info[:rows]
+      )
+    end
+
     output_json({
       status: 'success',
       operation: 'insert_from_markdown',
       document_id: document_id,
       inserted_at: index,
       text_length: plain_text.length,
-      formats_applied: parsed[:formats].length
+      formats_applied: parsed[:formats].length,
+      tables_inserted: tables.length
     })
   rescue Google::Apis::Error => e
     output_json({
