@@ -1002,9 +1002,7 @@ class DocsManager
             num_rows: table_rows.length,
             num_cols: table_rows.first&.length || 0
           }
-          # Add a placeholder newline for the table
-          text += "\n"
-          current_index += 1
+          # No placeholder needed — insert_table_internal inserts directly at insert_index
         end
       elsif line.empty?
         # Empty line
