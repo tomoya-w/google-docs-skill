@@ -1,10 +1,11 @@
 ---
-name: google-docs
+name: google-docs-skill
 description: Manage Google Docs and Google Drive with full document operations and file management. Includes Markdown support for creating formatted documents with headings, bold, italic, lists, tables, and checkboxes. Also supports Drive operations (upload, download, share, search).
-category: productivity
-version: 1.2.0
-key_capabilities: create-from-markdown, insert-from-markdown, tables, formatted text, Drive upload/download/share/search
-when_to_use: Document content operations, formatted document creation from Markdown, tables, Drive file management, sharing files
+metadata:
+  category: productivity
+  version: 1.2.0
+  key_capabilities: create-from-markdown, insert-from-markdown, tables, formatted text, Drive upload/download/share/search
+  when_to_use: Document content operations, formatted document creation from Markdown, tables, Drive file management, sharing files
 ---
 
 # Google Docs & Drive Management Skill
