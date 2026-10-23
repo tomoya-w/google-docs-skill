@@ -217,7 +217,7 @@ class DocsManager
       operation: 'insert',
       document_id: document_id,
       inserted_at: index,
-      text_length: text.length,
+      text_length: utf16_length(text),
       revision_id: result.document_id
     })
   rescue Google::Apis::Error => e
@@ -262,7 +262,7 @@ class DocsManager
       operation: 'append',
       document_id: document_id,
       appended_at: end_index,
-      text_length: text.length,
+      text_length: utf16_length(text),
       revision_id: result.document_id
     })
   rescue Google::Apis::Error => e
@@ -884,7 +884,7 @@ class DocsManager
       operation: 'insert_from_markdown',
       document_id: document_id,
       inserted_at: index,
-      text_length: plain_text.length,
+      text_length: utf16_length(plain_text),
       formats_applied: parsed[:formats].length,
       tables_inserted: tables.length
     })
@@ -913,7 +913,10 @@ class DocsManager
     text = ''
     formats = []
     tables = []
-    current_index = 1  # Google Docs starts at index 1
+    # Google Docs starts at index 1 and counts UTF-16 code units, so every length added to
+    # current_index (and every format start/end) uses utf16_length, not String#length:
+    # emoji and other characters outside the BMP are 2 units in Docs but 1 character in Ruby
+    current_index = 1
 
     lines = markdown.lines
     i = 0
@@ -923,59 +926,59 @@ class DocsManager
       if line.start_with?('# ')
         # H1 heading
         heading_text = line[2..] + "\n"
-        formats << { type: :heading1, start: current_index, end: current_index + heading_text.length - 1 }
+        formats << { type: :heading1, start: current_index, end: current_index + utf16_length(heading_text) - 1 }
         text += heading_text
-        current_index += heading_text.length
+        current_index += utf16_length(heading_text)
       elsif line.start_with?('## ')
         # H2 heading
         heading_text = line[3..] + "\n"
-        formats << { type: :heading2, start: current_index, end: current_index + heading_text.length - 1 }
+        formats << { type: :heading2, start: current_index, end: current_index + utf16_length(heading_text) - 1 }
         text += heading_text
-        current_index += heading_text.length
+        current_index += utf16_length(heading_text)
       elsif line.start_with?('### ')
         # H3 heading
         heading_text = line[4..] + "\n"
-        formats << { type: :heading3, start: current_index, end: current_index + heading_text.length - 1 }
+        formats << { type: :heading3, start: current_index, end: current_index + utf16_length(heading_text) - 1 }
         text += heading_text
-        current_index += heading_text.length
+        current_index += utf16_length(heading_text)
       elsif line.start_with?('- [ ] ') || line.start_with?('* [ ] ')
         # Unchecked checkbox item
         item_content = line[6..]
         bullet_prefix = '☐ '
-        processed = process_inline_formatting(item_content, current_index + bullet_prefix.length, formats)
+        processed = process_inline_formatting(item_content, current_index + utf16_length(bullet_prefix), formats)
         item_text = bullet_prefix + processed[:text] + "\n"
         text += item_text
-        current_index += item_text.length
+        current_index += utf16_length(item_text)
       elsif line.start_with?('- [x] ') || line.start_with?('* [x] ') || line.start_with?('- [X] ') || line.start_with?('* [X] ')
         # Checked checkbox item
         item_content = line[6..]
         bullet_prefix = '☑ '
-        processed = process_inline_formatting(item_content, current_index + bullet_prefix.length, formats)
+        processed = process_inline_formatting(item_content, current_index + utf16_length(bullet_prefix), formats)
         item_text = bullet_prefix + processed[:text] + "\n"
         text += item_text
-        current_index += item_text.length
+        current_index += utf16_length(item_text)
       elsif line.start_with?('- ') || line.start_with?('* ')
         # Bullet list item - also process inline formatting
         item_content = line[2..]
         bullet_prefix = '• '
-        processed = process_inline_formatting(item_content, current_index + bullet_prefix.length, formats)
+        processed = process_inline_formatting(item_content, current_index + utf16_length(bullet_prefix), formats)
         item_text = bullet_prefix + processed[:text] + "\n"
         text += item_text
-        current_index += item_text.length
+        current_index += utf16_length(item_text)
       elsif line.match?(/^(\d+)\. (.*)$/)
         # Numbered list item - process inline formatting
         match = line.match(/^(\d+)\. (.*)$/)
         num_prefix = match[1] + '. '
         item_content = match[2]
-        processed = process_inline_formatting(item_content, current_index + num_prefix.length, formats)
+        processed = process_inline_formatting(item_content, current_index + utf16_length(num_prefix), formats)
         item_text = num_prefix + processed[:text] + "\n"
         text += item_text
-        current_index += item_text.length
+        current_index += utf16_length(item_text)
       elsif line == '---'
         # Horizontal rule - use em dash line
         rule_text = "———————————————————————————\n"
         text += rule_text
-        current_index += rule_text.length
+        current_index += utf16_length(rule_text)
       elsif line.start_with?('|') && line.end_with?('|')
         # Markdown table - collect all table rows
         table_rows = []
@@ -1013,7 +1016,7 @@ class DocsManager
         processed = process_inline_formatting(line, current_index, formats)
         para_text = processed[:text] + "\n"
         text += para_text
-        current_index += para_text.length
+        current_index += utf16_length(para_text)
       end
 
       i += 1
@@ -1022,7 +1025,13 @@ class DocsManager
     { text: text, formats: formats, tables: tables }
   end
 
+  # Length of a string in UTF-16 code units, the unit of every Google Docs index
+  def utf16_length(str)
+    str.encode(Encoding::UTF_16LE).bytesize / 2
+  end
+
   # Process inline markdown formatting (**bold**, *italic*, `code`)
+  # (pos walks the characters of line; start/end are UTF-16 document indices)
   def process_inline_formatting(line, base_index, formats)
     result_text = ''
     pos = 0
@@ -1034,9 +1043,9 @@ class DocsManager
         end_pos = line.index('**', pos + 2)
         if end_pos
           bold_text = line[pos + 2...end_pos]
-          start_idx = base_index + result_text.length
+          start_idx = base_index + utf16_length(result_text)
           result_text += bold_text
-          formats << { type: :bold, start: start_idx, end: start_idx + bold_text.length }
+          formats << { type: :bold, start: start_idx, end: start_idx + utf16_length(bold_text) }
           pos = end_pos + 2
         else
           result_text += line[pos]
@@ -1047,9 +1056,9 @@ class DocsManager
         end_pos = line.index('*', pos + 1)
         if end_pos && line[end_pos, 2] != '**'
           italic_text = line[pos + 1...end_pos]
-          start_idx = base_index + result_text.length
+          start_idx = base_index + utf16_length(result_text)
           result_text += italic_text
-          formats << { type: :italic, start: start_idx, end: start_idx + italic_text.length }
+          formats << { type: :italic, start: start_idx, end: start_idx + utf16_length(italic_text) }
           pos = end_pos + 1
         else
           result_text += line[pos]
@@ -1060,9 +1069,9 @@ class DocsManager
         end_pos = line.index('`', pos + 1)
         if end_pos
           code_text = line[pos + 1...end_pos]
-          start_idx = base_index + result_text.length
+          start_idx = base_index + utf16_length(result_text)
           result_text += code_text
-          formats << { type: :code, start: start_idx, end: start_idx + code_text.length }
+          formats << { type: :code, start: start_idx, end: start_idx + utf16_length(code_text) }
           pos = end_pos + 1
         else
           result_text += line[pos]

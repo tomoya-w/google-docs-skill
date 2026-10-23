@@ -138,6 +138,7 @@ scripts/docs_manager.rb structure 1abc-xyz-document-id-123
 
 **Index Guidelines**:
 - Index 1: Start of document
+- Indexes and `text_length` count UTF-16 code units, as the Docs API does (an emoji such as 📄 is 2, a Japanese character is 1)
 - Existing content shifts right
 - Include newlines (\n) for spacing
 - Use structure command to find positions
